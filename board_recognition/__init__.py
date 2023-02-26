@@ -8,5 +8,8 @@ __all__ = [
         "main",
         "get_board_polygon",
         "greyscale",
-        "convolution_filter"
+        "convolution_filter",
+        "invert",
+        "get_connected_components",
+        "create_component_image"
         ]

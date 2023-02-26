@@ -5,9 +5,16 @@ import numpy as np
 
 def get_board_polygon(image):
     print("Computing board polygon")
-    canny = canny_algorithm(image)
-    # mplt.imshow(canny, cmap='gray')
-    # mplt.show()
+    canny_image = canny_algorithm(image)
+    inverted_image = br.invert(canny_image)
+    connected_components = br.get_connected_components(inverted_image)
+
+    print(len(connected_components))
+    for i in range(len(connected_components)):
+        conponent_image = br.create_component_image(image, connected_components[i])
+        mplt.imshow(conponent_image, cmap='gray')
+        mplt.show()
+
 
 def canny_algorithm(image):
     """Application of the Canny edge detection algoritm
@@ -17,7 +24,7 @@ def canny_algorithm(image):
     # the canny detection is pretty complex, it takes five steps
     # 1. Apply Gaussian filter to smooth the image in order to remove the noise
     print("Computing gaussian")
-    gaussian = gaussian_smoothing(image, kernel_size=11, sigma=5)
+    gaussian = gaussian_smoothing(image, kernel_size=5, sigma=1.4)
     # 2. Find the intensity gradients of the image
     print("Computing gradients")
     magnitude, direction = gradients(image)
@@ -33,15 +40,6 @@ def canny_algorithm(image):
     # edges
     # final_image = edge_tracking(threshold_image, weak_edges, strong_edges)
 
-    fig = mplt.figure()
-    fig.add_subplot(2, 2, 1)
-    mplt.imshow(gaussian, cmap='gray')
-    fig.add_subplot(2, 2, 2)
-    mplt.imshow(magnitude, cmap='gray')
-    fig.add_subplot(2, 2, 3)
-    mplt.imshow(suppressed_image, cmap='gray')
-    fig.add_subplot(2, 2, 4)
-    mplt.show()
     return magnitude
 
 def gaussian_smoothing(image, kernel_size=3, sigma=1.0):
