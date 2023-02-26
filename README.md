@@ -29,7 +29,7 @@ Then to get in the virtual python environment, you need to start the poetry shel
 ```
 poetry shell
 poetry install
-board-recognition
+board-recognition --image data/0.jpg
 ```
 
 ## Group members
