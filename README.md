@@ -28,6 +28,8 @@ Then to get in the virtual python environment, you need to start the poetry shel
 
 ```
 poetry shell
+poetry install
+board-recognition
 ```
 
 ## Group members

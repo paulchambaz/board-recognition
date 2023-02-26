@@ -2,17 +2,22 @@
 name = "board-recognition"
 version = "0.1.0"
 description = "board-recognition detects information from boards"
-authors = [ "David Bret", "Paul Chambaz", "Frédéric Ye" ]
-license = "GPLv3"
+authors = [ "David Bret", "Paul Chambaz", "Frederic Ye" ]
 readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.10"
+pillow = "^9.4.0"
+matplotlib = "^3.7.0"
+numpy = "^1.24.2"
+
+
+[tool.poetry.group.dev.dependencies]
+labelme = "^5.1.1"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-board-recognition = "src:main"
-
+board-recognition = "board_recognition:main"
