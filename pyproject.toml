@@ -12,6 +12,7 @@ matplotlib = "^3.7.0"
 numpy = "^1.24.2"
 argparse = "^1.4.0"
 pathlib = "^1.0.1"
+tqdm = "^4.64.1"
 
 [tool.poetry.group.dev.dependencies]
 labelme = "^5.1.1"
@@ -24,3 +25,4 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 board-recognition = "board_recognition:main"
+board-recognition-measure = "board_recognition_measure:main"
