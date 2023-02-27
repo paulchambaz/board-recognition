@@ -4,15 +4,37 @@ import matplotlib.pyplot as mplt
 import numpy as np
 
 def get_board_polygon(image):
-    print("Computing board polygon")
+    mplt.imshow(image, cmap='gray')
+    mplt.show()
+
     canny_image = canny_algorithm(image)
-    inverted_image = br.invert(canny_image)
+    mplt.imshow(canny_image, cmap='gray')
+    mplt.show()
+
+    binary_image = br.binarize(canny_image, 20)
+    mplt.imshow(binary_image, cmap='gray')
+    mplt.show()
+
+    inverted_image = br.invert(binary_image)
+    mplt.imshow(inverted_image, cmap='gray')
+    mplt.show()
+
+    print("Searching for connected components")
     connected_components = br.get_connected_components(inverted_image)
+    sorted(connected_components, key=len)
+    # print(connected_components)
+
+    component_image = br.create_component_image(image, connected_components[0])
+    mplt.imshow(component_image, cmap='gray')
+    mplt.show()
 
     print(len(connected_components))
-    for i in range(len(connected_components)):
-        conponent_image = br.create_component_image(image, connected_components[i])
-        mplt.imshow(conponent_image, cmap='gray')
+    for component in connected_components:
+        if len(component) < 256:
+            continue
+        print("len:", len(component))
+        component_image = br.create_component_image(image, component)
+        mplt.imshow(component_image, cmap='gray')
         mplt.show()
 
 
@@ -27,11 +49,11 @@ def canny_algorithm(image):
     gaussian = gaussian_smoothing(image, kernel_size=5, sigma=1.4)
     # 2. Find the intensity gradients of the image
     print("Computing gradients")
-    magnitude, direction = gradients(image)
+    magnitude, direction = gradients(gaussian)
     # 3. Apply gradient magnitude thresholding or lower bound cut-off
     # suppression to get rid of spurious response to edge detection
-    print("Computing non magnitude thresholding")
-    suppressed_image = non_maximum_suppression(magnitude, direction)
+    # print("Computing non magnitude thresholding")
+    # suppressed_image = non_maximum_suppression(magnitude, direction)
     # 4. Apply double threshold to determine potential edges
     # print("Computing double threshold")
     # threshold_image, strong_edges, weak_edges = double_threshold(suppressed_image, 0.05, 0.09)

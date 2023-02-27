@@ -7,6 +7,18 @@ def grayscale(image):
     """
     return np.mean(image, axis=2)
 
+def binarize(image, threshold):
+    """Binarize a grayscale image
+    @param image The image to binarize
+    @param threshold The threshold at which to binarize
+    @return The binarized image
+    """
+    binary_image = image.copy()
+    binary_image[binary_image < threshold] = 0
+    binary_image[binary_image >= threshold] = 255
+    return binary_image
+
+
 def convolution_filter(image, kernel, mode='edge'):
     """Applies a convolution filter to a image
     @param image The input image
@@ -44,28 +56,27 @@ def invert(image):
     return inverted_image
 
 
-def get_connected_components(img, connectivity=4):
+def get_connected_components(image, connectivity=4):
     """
     Finds all connected components in a binary image
-    @param img: A binary image as a NumPy array
+    @param image: A binary image as a NumPy array
     @param connectivity: The connectivity parameter (4 or 8)
     A list of all connected components in the format (x, y, value)
     """
-    # Get the height and width of the image
-    height, width = img.shape
-    # Create a list to store the connected components
+    # we initialise the components list which we will return
     components = []
-    # Create a binary mask of the same size as the image
-    mask = np.zeros((height, width), dtype=np.uint8)
-    # Define the neighbors based on the connectivity parameter
+    # we create a mask - which will be used to keep track of pixels already
+    # part of a comonent
+    mask = np.zeros_like(image)
+    # we compute the neighbors
     neighbors = get_neighbors(connectivity)
-    components = []
-    mask = np.zeros_like(img)
-    lines, cols = img.shape
-    for i in range(cols):
-        for j in range(lines):
-            if img[j, i] == 1 and mask[j, i] == 0:
-                component = get_component(img, mask, neighbors, i, j)
+    # loops over the image row by row
+    rows, cols = image.shape
+    for j in range(rows):
+        for i in range(cols):
+            component = get_connected_component(i, j, image, mask, neighbors)
+            if not len(component) == 0:
+                # print("value:", image[j, i], "length of component:", len(component))
                 components.append(component)
     return components
 
@@ -75,23 +86,37 @@ def get_neighbors(connectivity):
     elif connectivity == 8:
         return [(0, -1), (0, 1), (-1, 0), (1, 0), (-1, -1), (-1, 1), (1, -1), (1, 1)]
 
-
-def get_component(img, mask, neighbors, i, j):
-    lines, cols = img.shape
+def get_connected_component(i, j, image, mask, neighbors):
+    """Finds all pixels member of a connected component
+    @param image The image to search
+    @param mask Keeps track of members that are already present in the
+    component list
+    @param neighbors The list of surrounding pixels to consider
+    @param i The i coordinate of the pixel to search at
+    @param j The j coordinate of the pixel to search at
+    @param component The list which contains all components
+    """
     component = []
-    queue = [(i, j)]
-    mask[j, i] = 1
-    while queue:
-        curr_j, curr_i = queue.pop(0)
-        component.append((curr_i, curr_j))
-        for dj, di in neighbors:
-            neighbor_i, neighbor_j = curr_i + dj, curr_j + di
-            if 0 <= neighbor_i < cols \
-                    and 0 <= neighbor_j < lines \
-                    and mask[neighbor_j, neighbor_i] == 0 \
-                    and img[neighbor_j, neighbor_i] == 1:
-                queue.append((neighbor_i, neighbor_j))
-                mask[neighbor_j, neighbor_i] = 1
+    rows, cols = image.shape
+    # we can't do this function in a recursive way because of python
+    stack = [(i, j)]
+    while stack:
+        # pop the element
+        i, j = stack.pop()
+        # if we are outside the image or the current pixel is not part of the
+        # list or if we have already visited that pixel
+        if i < 0 or i >= cols or j < 0 or j >= rows \
+                or image[j, i] == 0 or mask[j, i] == 255:
+            # we stop no need to search for that pixel
+            continue
+        # if it is
+        else:
+            # then we add it to the list of members of the connected components
+            component.append((i, j))
+            mask[j, i] = 255
+            # and we recursive search over all neighbors
+            for di, dj in neighbors:
+                stack.append((i + di, j + dj))
     return component
 
 def create_component_image(image, component):
