@@ -13,9 +13,10 @@ numpy = "^1.24.2"
 argparse = "^1.4.0"
 pathlib = "^1.0.1"
 
-
 [tool.poetry.group.dev.dependencies]
 labelme = "^5.1.1"
+tox = "^4.4.6"
+pytest = "^7.2.1"
 
 [build-system]
 requires = ["poetry-core"]
