@@ -15,7 +15,8 @@ def main():
     board_scores = []
     text_scores = []
     schema_scores = []
-
+    
+    print("Board")
     for file in tqdm(files):
         n = file.stem
         image = load_image(str(file))
@@ -27,12 +28,22 @@ def main():
 
         board_scores.append(random.random())
 
+    print("Text")
+    for file in tqdm(files):
+        n = file.stem
+        image = load_image(str(file))
+
         text = f"ground-truth/text/{n}.json"
         text_poly = load_polygons_from_json(text)
         if not text_poly:
             continue
 
         text_scores.append(random.random())
+
+    print("Schema")
+    for file in tqdm(files):
+        n = file.stem
+        image = load_image(str(file))
 
         schema = f"ground-truth/schema/{n}.json"
         schema_poly = load_polygons_from_json(schema)

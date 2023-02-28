@@ -1,11 +1,51 @@
 import numpy as np
 
+def preprocess(image):
+    gray = grayscale(image)
+    cols, rows = gray.shape
+    scale_factor = 512 / max(rows, cols)
+    new_cols = int(cols * scale_factor)
+    new_rows = int(rows * scale_factor)
+    resized = downsize(gray, (new_cols, new_rows))
+    contrasted = stretch_contrast(resized)
+    return uint8_to_float(contrasted)
+
 def grayscale(image):
     """Converts a numpy rgb image to grayscale
     @param image The image to convert
     @return The grayscale of the image
     """
     return np.mean(image, axis=2)
+
+def downsize(image, shape):
+    """Resizes an image using bilinear interpolation
+    @param image The image to resize
+    @param shape The new shape of the image as a tuple (height, width)
+    @return The resized image
+    """
+    # computes the ratio
+    block_size_i = image.shape[0] // shape[0]
+    block_size_j = image.shape[1] // shape[1]
+    blocks = image[:shape[0] * block_size_i, :shape[1] * block_size_j]\
+            .reshape(shape[0], block_size_i, shape[1], block_size_j)
+    resized_image = np.mean(blocks, axis=(1, 3)).astype(np.uint8)
+    return resized_image
+
+def stretch_contrast(image):
+    """Stretch the dynamic range of a grayscale image to the full range [0,
+    255]."""
+    # Compute the minimum and maximum pixel values in the image
+    min_val, max_val = np.min(image), np.max(image)
+    # Scale the pixel values to the full [0, 255] range
+    output_image = np.zeros_like(image)
+    for j in range(image.shape[0]):
+        for i in range(image.shape[1]):
+            output_image[j, i] = (255 * (float(image[j, i]) - min_val) / (max_val - min_val)).astype(np.uint8)
+    return output_image
+
+def uint8_to_float(image):
+    float_image = image.astype(np.float32) / 255.0
+    return float_image
 
 def binarize(image, threshold):
     """Binarize a grayscale image
@@ -14,8 +54,8 @@ def binarize(image, threshold):
     @return The binarized image
     """
     binary_image = image.copy()
-    binary_image[binary_image < threshold] = 0
-    binary_image[binary_image >= threshold] = 255
+    binary_image[binary_image < threshold] = 0.0
+    binary_image[binary_image >= threshold] = 1.0
     return binary_image
 
 
@@ -41,7 +81,8 @@ def convolution_filter(image, kernel, mode='edge'):
             # kernel_size] from the padded image. since we get it from the
             # padded image we start at j, since 0 for image is j for the padded
             # image
-            window = padded_image[j : j + kernel_size, i : i + kernel_size]
+            window = padded_image[j : j + kernel_size, i : i + kernel_size]\
+                    .astype(np.float32)
             # then we do the sum of the two matrixes and and apply it to the
             # pixel at coordinate j, i
             output_image[j, i] = np.sum(window * kernel)
@@ -52,7 +93,7 @@ def invert(image):
     @param image The image to invert
     @return The inverted image
     """
-    inverted_image = 255 - image
+    inverted_image = 1.0 - image
     return inverted_image
 
 
@@ -106,14 +147,14 @@ def get_connected_component(i, j, image, mask, neighbors):
         # if we are outside the image or the current pixel is not part of the
         # list or if we have already visited that pixel
         if i < 0 or i >= cols or j < 0 or j >= rows \
-                or image[j, i] == 0 or mask[j, i] == 255:
+                or image[j, i] == 0 or mask[j, i] == 1.0:
             # we stop no need to search for that pixel
             continue
         # if it is
         else:
             # then we add it to the list of members of the connected components
             component.append((i, j))
-            mask[j, i] = 255
+            mask[j, i] = 1.0
             # and we recursive search over all neighbors
             for di, dj in neighbors:
                 stack.append((i + di, j + dj))
@@ -122,5 +163,5 @@ def get_connected_component(i, j, image, mask, neighbors):
 def create_component_image(image, component):
     new_image = np.zeros(image.shape, dtype=np.uint8)
     for pixel in component:
-        new_image[pixel[1], pixel[0]] = 255
+        new_image[pixel[1], pixel[0]] = 1.0
     return new_image

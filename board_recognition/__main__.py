@@ -3,6 +3,7 @@ import board_recognition as br
 import sys
 import argparse
 import pathlib
+import matplotlib.pyplot as mplt
 import matplotlib.image as mimg
 import numpy as np
 
@@ -28,8 +29,8 @@ def main():
 
     image = mimg.imread(image_file)
 
-    gray = br.grayscale(image)
+    image = br.preprocess(image)
 
-    br.get_board_polygon(gray)
+    br.get_board_polygon(image)
 
 

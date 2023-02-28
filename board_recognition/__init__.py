@@ -7,7 +7,9 @@ from board_recognition.util import *
 __all__ = [
         "main",
         "get_board_polygon",
-        "greyscale",
+        "preprocess",
+        "grayscale",
+        "resize",
         "binarize",
         "convolution_filter",
         "invert",
