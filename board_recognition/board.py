@@ -100,7 +100,7 @@ def fill_holes(image):
             if image[j, i] == 1.0:
                 max = i
                 break
-        for i in range(min, max + 1):
+        for i in range(min, max):
             filled[j, i] = 1.0
     for i in range(image.shape[1]):
         # find first pixel with a white value
@@ -114,7 +114,7 @@ def fill_holes(image):
             if image[j, i] == 1.0:
                 max = j
                 break
-        for j in range(min, max + 1):
+        for j in range(min, max):
             filled[j, i] = 1.0
 
     return filled
