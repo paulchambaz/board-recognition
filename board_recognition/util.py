@@ -3,9 +3,7 @@ import numpy as np
 def preprocess(image):
     gray = grayscale(image)
     cols, rows = gray.shape
-    print("cols:", cols, "rows:", rows)
     max_dim = max(rows, cols)
-    print("max_dim:", max_dim)
     if max_dim > 512:
         scale_factor = 512 / max_dim
         new_cols = int(cols * scale_factor)

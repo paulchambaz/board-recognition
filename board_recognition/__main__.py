@@ -29,8 +29,17 @@ def main():
 
     image = mimg.imread(image_file)
 
-    image = br.preprocess(image)
+    pre_image = br.preprocess(image)
 
-    br.get_board_polygon(image)
+    polygon_image = br.process_image(pre_image)
+
+    fig, (ax1, ax2) = mplt.subplots(1, 2, figsize=(10, 5))
+    ax1.imshow(image)
+    ax1.set_title('Original Image')
+
+    ax2.imshow(polygon_image, cmap='gray')
+    ax2.set_title('Polygon Image')
+
+    mplt.show()
 
 

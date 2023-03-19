@@ -3,10 +3,10 @@ import board_recognition as br
 import matplotlib.pyplot as mplt
 import numpy as np
 
-def get_board_polygon(image):
+def process_image(image):
     
-    mplt.imshow(image, cmap='gray')
-    mplt.show()
+    # mplt.imshow(image, cmap='gray')
+    # mplt.show()
 
     # print("Gaussian")
     gaussian = gaussian_smoothing(image, kernel_size=5, sigma=1.4)
@@ -39,13 +39,18 @@ def get_board_polygon(image):
 
     huge_components = [component for component in connected_components if len(component) >= size_threshold]
 
+    # for component in huge_components:
+    #     component_image = br.create_component_image(image, component)
+    #     mplt.imshow(component_image, cmap='gray')
+    #     mplt.show()
+
+    contained_components = []
     if len(huge_components) == 1:
         connected_component = huge_components[0]
-        print('selected because there is only one')
-    else:
+        # print('selected because there is only one')
+    elif len(huge_components) == 2:
         bounding_boxes = [get_bounding_box(component) for component in huge_components]
 
-        contained_components = []
         for i, box1 in enumerate(bounding_boxes):
             for j, box2 in enumerate(bounding_boxes):
                 if i != j and is_inside(box1, box2, margin=32):
@@ -54,15 +59,18 @@ def get_board_polygon(image):
 
         if len(contained_components) == 1:
             connected_component = contained_components[0]
-            print('selected from bounding box')
-        else:
+            # print('selected from bounding box')
+
+
+    if not len(huge_components) == 1 or not len(huge_components) == 2 \
+        or not len(contained_components) == 1:
             centroids = [get_centroid(component) for component in huge_components]
 
             target_x = image.shape[1] * .6
             target_y = image.shape[0] * .5
             connected_component = min(huge_components, key=lambda c: distance(get_centroid(c), (target_x, target_y)))
             # connected_component = min(huge_components, key=lambda c: abs(get_centroid(c)[1] - target_y))
-            print('selected from proximity to target')
+            # print('selected from proximity to target')
 
     component_image = br.create_component_image(image, connected_component)
 
@@ -71,8 +79,10 @@ def get_board_polygon(image):
     inverted_filled = fill_holes(inverted)
     final = 1.0 - inverted_filled
 
+    # mplt.imshow(final, cmap='gray')
+    # mplt.show()
 
-
+    return final
 
 def gaussian_smoothing(image, kernel_size=3, sigma=1.0):
     """Applies a gaussian smoothing filter to the image
