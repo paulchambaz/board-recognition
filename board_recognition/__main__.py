@@ -40,6 +40,29 @@ def main():
     ax2.imshow(polygon_image, cmap='gray')
     ax2.set_title('Polygon Image')
 
-    mplt.show()
 
+    file_name = image_file.name
+    output_path = pathlib.Path("output") / file_name
+
+    fig.savefig(output_path)
+    # mplt.show()
+
+    # cols, rows = polygon_image.shape
+    # scale_factor = 64 / max(rows, cols)
+    # new_cols = int(cols * scale_factor)
+    # new_rows = int(rows * scale_factor)
+    # resized = br.downsize_gray(polygon_image, (new_cols, new_rows))
+
+    # fig, (ax1, ax2) = mplt.subplots(1, 2, figsize=(10, 5))
+    # ax1.imshow(image)
+    # ax1.set_title('Original Image')
+
+    # ax2.imshow(resized, cmap='gray')
+    # ax2.set_title('Polygon Image')
+
+    # mplt.show()
+
+    # point_indices = np.argwhere(polygon_image == 1)
+    # alpha_shape_points = br.alpha_shape(point_indices, 1.0)
+    # print(alpha_shape_points)
 

@@ -1,39 +1,98 @@
+import matplotlib.pyplot as mplt
+import math
 import numpy as np
 
 def preprocess(image):
-    gray = grayscale(image)
-    cols, rows = gray.shape
+    cols, rows, _ = image.shape
     max_dim = max(rows, cols)
     if max_dim > 512:
         scale_factor = 512 / max_dim
         new_cols = int(cols * scale_factor)
         new_rows = int(rows * scale_factor)
-        resized = downsize(gray, (new_cols, new_rows))
+        resized = downsize_rgb(image, (new_cols, new_rows))
     else:
-        resized = gray
-    contrasted = stretch_contrast(resized)
-    return uint8_to_float(contrasted)
+        resized = image
+
+#     mplt.imshow(resized)
+#     mplt.show()
+
+    gray = grayscale(resized)
+
+    # print('gray')
+
+    # mplt.imshow(gray, cmap='gray')
+    # mplt.show()
+
+    contrasted = stretch_contrast(gray)
+
+#     mplt.imshow(contrasted, cmap='gray')
+#     mplt.show()
+
+    sigmoid = 1 / (1 + np.exp(-4 * (contrasted - 0.5)))
+    sigmoid = np.clip(sigmoid, 0, 1)
+
+#     mplt.imshow(sigmoid, cmap='gray')
+#     mplt.show()
+
+    return sigmoid
 
 def grayscale(image):
     """Converts a numpy rgb image to grayscale
     @param image The image to convert
     @return The grayscale of the image
     """
-    return np.mean(image, axis=2)
+    return np.mean(image, axis=2).astype(np.uint8) / 255
 
-def downsize(image, shape):
+def downsize_rgb(image, shape):
     """Resizes an image using bilinear interpolation
     @param image The image to resize
     @param shape The new shape of the image as a tuple (height, width)
     @return The resized image
     """
     # computes the ratio
-    block_size_i = image.shape[0] // shape[0]
-    block_size_j = image.shape[1] // shape[1]
-    blocks = image[:shape[0] * block_size_i, :shape[1] * block_size_j]\
-            .reshape(shape[0], block_size_i, shape[1], block_size_j)
-    resized_image = np.mean(blocks, axis=(1, 3)).astype(np.uint8)
-    return resized_image
+    height, width, channels = image.shape
+    new_height, new_width = shape
+
+    x_ratio = width / new_width
+    y_ratio = height / new_height
+
+    new_image = np.zeros((new_height, new_width, channels), dtype=np.uint8)
+
+    for i in range(new_height):
+        for j in range(new_width):
+            x, y = int(j * x_ratio), int(i * y_ratio)
+            x_weight, y_weight = (j * x_ratio) % 1, (i * y_ratio) % 1
+            new_image[i, j] = (
+                image[y, x] * (1 - x_weight) * (1 - y_weight)
+                + image[y, min(x + 1, width - 1)] * x_weight * (1 - y_weight)
+                + image[min(y + 1, height - 1), x] * (1 - x_weight) * y_weight
+                + image[min(y + 1, height - 1), min(x + 1, width - 1)] * x_weight * y_weight
+            ).astype(np.uint8)
+
+    return new_image
+
+def downsize_gray(image, shape):
+    # computes the ratio
+    height, width = image.shape
+    new_height, new_width = shape
+
+    x_ratio = width / new_width
+    y_ratio = height / new_height
+
+    new_image = np.zeros((new_height, new_width), dtype=np.uint8)
+
+    for i in range(new_height):
+        for j in range(new_width):
+            x, y = int(j * x_ratio), int(i * y_ratio)
+            x_weight, y_weight = (j * x_ratio) % 1, (i * y_ratio) % 1
+            new_image[i, j] = (
+                image[y, x] * (1 - x_weight) * (1 - y_weight)
+                + image[y, min(x + 1, width - 1)] * x_weight * (1 - y_weight)
+                + image[min(y + 1, height - 1), x] * (1 - x_weight) * y_weight
+                + image[min(y + 1, height - 1), min(x + 1, width - 1)] * x_weight * y_weight
+            ).astype(np.uint8)
+
+    return new_image
 
 def stretch_contrast(image):
     """Stretch the dynamic range of a grayscale image to the full range [0,
@@ -44,7 +103,7 @@ def stretch_contrast(image):
     output_image = np.zeros_like(image)
     for j in range(image.shape[0]):
         for i in range(image.shape[1]):
-            output_image[j, i] = (255 * (float(image[j, i]) - min_val) / (max_val - min_val)).astype(np.uint8)
+            output_image[j, i] = (1.0 * (float(image[j, i]) - min_val) / (max_val - min_val))
     return output_image
 
 def uint8_to_float(image):
@@ -169,3 +228,68 @@ def create_component_image(image, component):
     for pixel in component:
         new_image[pixel[1], pixel[0]] = 1.0
     return new_image
+
+def apply_hsv_modification(image):
+    hsv_image = rgb_to_hsv(image)
+
+    green_to_blue_mask = np.logical_and(hsv_image[..., 0] >= 60, hsv_image[..., 0] <= 260)
+    medium_to_high_saturation_mask = hsv_image[..., 1] >= 0.1
+    average_value_mask = np.logical_and(hsv_image[..., 2] >= 0.2, hsv_image[..., 2] <= 0.8)
+    mask1 = np.logical_and(np.logical_and(green_to_blue_mask, medium_to_high_saturation_mask), average_value_mask)
+
+    low_saturation_mask = hsv_image[..., 1] <= 0.6
+    high_value_mask = hsv_image[..., 2] >= 0.3
+    mask2 = np.logical_and(low_saturation_mask, high_value_mask)
+
+    combined_mask = np.logical_or(mask1, mask2)
+    mask = np.logical_not(combined_mask)
+
+    hsv_image[mask, 2] = hsv_image[mask, 2] / 2
+
+    return hsv_to_gray(hsv_image)
+
+def rgb_to_hsv(rgb):
+    # resize the array as 2d array of pixels so it's easier to manage
+    input_shape = rgb.shape
+    rgb = rgb.reshape(-1, 3)
+
+    r, g, b = rgb[:, 0] / 255., rgb[:, 1] / 255., rgb[:, 2] / 255.
+
+    # get min and max for each r g b
+    cmax = np.maximum(np.maximum(r, g), b)
+    cmin = np.minimum(np.minimum(r, g), b)
+
+    # value is simply the max
+    value = cmax
+
+    # compute the delta betweeen pixels
+    delta = cmax - cmin
+
+    # saturation is delta / cmax when we can
+    saturation = np.zeros_like(cmax)
+    saturation[cmax == 0] = 0
+    saturation[cmax != 0] = delta[cmax != 0] / cmax[cmax != 0]
+
+    # hue has a pretty complex formula
+    hue = np.zeros_like(value, dtype=np.float32)
+
+    delta_zero_mask = delta == 0
+    r_greater_mask = (r > g) & (r > b) & ~delta_zero_mask
+    g_greater_mask = (g >= r) & (g > b) & ~delta_zero_mask
+    b_greater_mask = (b >= r) & (b >= g) & ~delta_zero_mask
+
+    hue[r_greater_mask] = 60.0 * ((g - b)[r_greater_mask] / delta[r_greater_mask] % 6.0)
+    hue[g_greater_mask] = 60.0 * ((b - r)[g_greater_mask] / delta[g_greater_mask] + 2.0)
+    hue[b_greater_mask] = 60.0 * ((r - g)[b_greater_mask] / delta[b_greater_mask] + 4.0)
+    hue[delta_zero_mask] = 0.0
+
+    # finally we create the hsv image and we return it at correct shape
+    res = np.dstack([hue, saturation, value])
+    return res.reshape(input_shape)
+
+def hsv_to_gray(hsv):
+    """Return a grayscale image from a hsv image
+    @param hsv Numpy hsv image
+    @return A grayscale image from the hsv image
+    """
+    return hsv[:, :, 2]

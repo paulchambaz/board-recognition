@@ -2,52 +2,60 @@ import board_recognition as br
 
 import matplotlib.pyplot as mplt
 import numpy as np
+from tqdm import tqdm
 
 def process_image(image):
     
+    # print('original')
     # mplt.imshow(image, cmap='gray')
     # mplt.show()
 
-    # print("Gaussian")
     gaussian = gaussian_smoothing(image, kernel_size=5, sigma=1.4)
 
+    # print("gaussian")
     # mplt.imshow(gaussian, cmap='gray')
     # mplt.show()
 
-    # print("Gradient")
     gradient = gradients(gaussian)
+    gradient = gaussian_smoothing(gradient, kernel_size=3, sigma=0.8)
 
+    # print("gradient")
     # mplt.imshow(gradient, cmap='gray')
     # mplt.show()
 
-    # print("Binary")
-    binary_image = br.binarize(gradient, .2)
+    binary_image = br.binarize(gradient, .15)
 
+    binary_image = fill_holes(binary_image, size=3)
+
+    # print("binary")
     # mplt.imshow(binary_image, cmap='gray')
     # mplt.show()
 
-    # print("Invert")
     inverted_image = br.invert(binary_image)
 
-    # mplt.imshow(inverted_image, cmap='gray')
-    # mplt.show()
+
+#     mplt.imshow(inverted_image, cmap='gray')
+#     mplt.show()
 
     # print("Connected components")
     connected_components = br.get_connected_components(inverted_image)
     largest_component = max(connected_components, key=len)
-    size_threshold = 0.5 * len(largest_component)
+    size_threshold = 0.4 * len(largest_component)
 
     huge_components = [component for component in connected_components if len(component) >= size_threshold]
 
+    # print('connected components')
     # for component in huge_components:
     #     component_image = br.create_component_image(image, component)
     #     mplt.imshow(component_image, cmap='gray')
     #     mplt.show()
 
     contained_components = []
+    done = False
     if len(huge_components) == 1:
         connected_component = huge_components[0]
-        # print('selected because there is only one')
+        # print('unique selection')
+        done = True
     elif len(huge_components) == 2:
         bounding_boxes = [get_bounding_box(component) for component in huge_components]
 
@@ -59,30 +67,35 @@ def process_image(image):
 
         if len(contained_components) == 1:
             connected_component = contained_components[0]
-            # print('selected from bounding box')
+            # print('bounding box selection')
+            done = True
 
+    if done == False:
+            target_x = image.shape[1] * .5
+            target_y = image.shape[0] * .6
 
-    if not len(huge_components) == 1 or not len(huge_components) == 2 \
-        or not len(contained_components) == 1:
-            centroids = [get_centroid(component) for component in huge_components]
-
-            target_x = image.shape[1] * .6
-            target_y = image.shape[0] * .5
             connected_component = min(huge_components, key=lambda c: distance(get_centroid(c), (target_x, target_y)))
-            # connected_component = min(huge_components, key=lambda c: abs(get_centroid(c)[1] - target_y))
-            # print('selected from proximity to target')
+            # print('target selection')
 
     component_image = br.create_component_image(image, connected_component)
+    bbox_large = get_bounding_box(connected_component)
+    bbox_large = (bbox_large[0], bbox_large[2], bbox_large[1], bbox_large[3])
 
-    filled = fill_holes(component_image)
+    filled = fill_holes(component_image, size=5)
     inverted = 1.0 - filled
-    inverted_filled = fill_holes(inverted)
-    final = 1.0 - inverted_filled
+    inverted_filled = fill_holes(inverted, size=3)
+    filled = 1.0 - inverted_filled
 
-    # mplt.imshow(final, cmap='gray')
+    flood_filled = mask_fill(filled)
+
+    # print('filling')
+    # mplt.imshow(filled, cmap='gray')
     # mplt.show()
 
-    return final
+    # mplt.imshow(flood_filled, cmap='gray')
+    # mplt.show()
+
+    return flood_filled
 
 def gaussian_smoothing(image, kernel_size=3, sigma=1.0):
     """Applies a gaussian smoothing filter to the image
@@ -201,3 +214,82 @@ def get_centroid(component):
 
 def distance(p1, p2):
     return ((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2) ** 0.5
+
+def mask_fill(mask):
+    out = mask.copy()
+    invert = 1.0 - out
+    connected_components = br.get_connected_components(invert)
+
+    for component in connected_components:
+        component_image = br.create_component_image(mask, component)
+
+        start_point = component[0]
+
+        sleft = False
+        for x in range(start_point[0], -1, -1):
+            if out[start_point[1], x] == 1:
+                sleft = True
+                break
+
+        sright = False
+        for x in range(start_point[0], out.shape[1], 1):
+            if out[start_point[1], x] == 1:
+                sright = True
+                break
+
+        sup = False
+        for y in range(start_point[1], -1, -1):
+            if out[y, start_point[0]] == 1:
+                sup = True
+                break
+
+        sdown = False
+        for x in range(start_point[1], out.shape[0], 1):
+            if out[y, start_point[0]] == 1:
+                sdown = True
+                break
+
+        if sleft and sright and sup and sdown:
+            for point in component:
+                out[point[1], point[0]] = 1.0
+
+    return out
+
+# polygon algorithms
+
+def euclidean_distance(p1, p2):
+    return np.sqrt(np.sum((p1 - p2) ** 2))
+
+def circumcircle_radius(p1, p2, p3):
+    a = euclidean_distance(p1, p2)
+    b = euclidean_distance(p2, p3)
+    c = euclidean_distance(p3, p1)
+    
+    # Check for collinear points
+    if abs(a + b - c) < 1e-6 or abs(b + c - a) < 1e-6 or abs(c + a - b) < 1e-6:
+        return np.inf
+    
+    s = (a + b + c) / 2
+    area = np.sqrt(s * (s - a) * (s - b) * (s - c))
+    
+    if area == 0:
+        return np.inf
+    
+    radius = (a * b * c) / (4 * area)
+    return radius
+
+def alpha_shape(points, alpha):
+    num_points = len(points)
+    triangles = []
+    
+    for i in range(num_points):
+        for j in range(i + 1, num_points):
+            for k in range(j + 1, num_points):
+                p1, p2, p3 = points[i], points[j], points[k]
+                radius = circumcircle_radius(p1, p2, p3)
+                
+                if radius <= alpha:
+                    triangles.append([i, j, k])
+    
+    hull_indices = np.unique(np.array(triangles))
+    return points[hull_indices]
