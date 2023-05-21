@@ -4,6 +4,11 @@ import matplotlib.pyplot as mplt
 import numpy as np
 from tqdm import tqdm
 
+def get_board_polygon(image):
+    pre_image = br.preprocess(image)
+    polygon_image = br.process_image(pre_image)
+    # TODO
+
 def process_image(image):
     
     # print('original')
@@ -12,9 +17,9 @@ def process_image(image):
 
     gaussian = gaussian_smoothing(image, kernel_size=5, sigma=1.4)
 
-    # print("gaussian")
-    # mplt.imshow(gaussian, cmap='gray')
-    # mplt.show()
+#     print("gaussian")
+#     mplt.imshow(gaussian, cmap='gray')
+#     mplt.show()
 
     gradient = gradients(gaussian)
     gradient = gaussian_smoothing(gradient, kernel_size=3, sigma=0.8)
@@ -33,9 +38,8 @@ def process_image(image):
 
     inverted_image = br.invert(binary_image)
 
-
-#     mplt.imshow(inverted_image, cmap='gray')
-#     mplt.show()
+    # mplt.imshow(inverted_image, cmap='gray')
+    # mplt.show()
 
     # print("Connected components")
     connected_components = br.get_connected_components(inverted_image)
@@ -54,7 +58,7 @@ def process_image(image):
     done = False
     if len(huge_components) == 1:
         connected_component = huge_components[0]
-        # print('unique selection')
+        print('unique selection')
         done = True
     elif len(huge_components) == 2:
         bounding_boxes = [get_bounding_box(component) for component in huge_components]
@@ -67,7 +71,7 @@ def process_image(image):
 
         if len(contained_components) == 1:
             connected_component = contained_components[0]
-            # print('bounding box selection')
+            print('bounding box selection')
             done = True
 
     if done == False:
@@ -75,27 +79,38 @@ def process_image(image):
             target_y = image.shape[0] * .6
 
             connected_component = min(huge_components, key=lambda c: distance(get_centroid(c), (target_x, target_y)))
-            # print('target selection')
+            print('target selection')
 
     component_image = br.create_component_image(image, connected_component)
-    bbox_large = get_bounding_box(connected_component)
-    bbox_large = (bbox_large[0], bbox_large[2], bbox_large[1], bbox_large[3])
+
+    # mplt.imshow(component_image, cmap='gray')
+    # mplt.show()
 
     filled = fill_holes(component_image, size=5)
     inverted = 1.0 - filled
     inverted_filled = fill_holes(inverted, size=3)
     filled = 1.0 - inverted_filled
 
-    flood_filled = mask_fill(filled)
-
     # print('filling')
     # mplt.imshow(filled, cmap='gray')
     # mplt.show()
 
-    # mplt.imshow(flood_filled, cmap='gray')
+    flood_filled = mask_fill(filled)
+
+    mplt.imshow(flood_filled, cmap='gray')
+    mplt.show()
+
+    frontier = get_frontier(flood_filled)
+
+    # mplt.imshow(frontier, cmap='gray')
     # mplt.show()
 
-    return flood_filled
+    return frontier
+
+def get_frontier(image, size=3):
+    kernel = np.ones((size, size), dtype=np.uint8)
+    erode_image = erode(image, kernel, pad_value=0)
+    return image - erode_image
 
 def gaussian_smoothing(image, kernel_size=3, sigma=1.0):
     """Applies a gaussian smoothing filter to the image
@@ -176,12 +191,12 @@ def dilate(image, kernel):
 
     return dilated_image
 
-def erode(image, kernel):
+def erode(image, kernel, pad_value=1):
     """Erodes the image
     @param image The image to erode for
     @parma kernel The kernel to use for erosion
     """
-    padded_image = np.pad(image, kernel.shape[0] // 2, mode='constant', constant_values=1)
+    padded_image = np.pad(image, kernel.shape[0] // 2, mode='constant', constant_values=pad_value)
     eroded_image = np.zeros_like(image)
 
     for i in range(image.shape[0]):
@@ -255,6 +270,7 @@ def mask_fill(mask):
 
     return out
 
+
 # polygon algorithms
 
 def euclidean_distance(p1, p2):
@@ -278,18 +294,46 @@ def circumcircle_radius(p1, p2, p3):
     radius = (a * b * c) / (4 * area)
     return radius
 
+def is_boundary_edge(edge, triangles):
+    """
+    Check if an edge is on the boundary of the set of triangles.
+    An edge is on the boundary if it is part of only one triangle.
+    """
+    count = sum(1 for triangle in triangles if edge_in_triangle(edge, triangle))
+    return count == 1
+
+def edge_in_triangle(edge, triangle):
+    """
+    Check if an edge is part of a triangle.
+    """
+    return all(point in triangle for point in edge)
+
 def alpha_shape(points, alpha):
-    num_points = len(points)
-    triangles = []
     
-    for i in range(num_points):
+    alpha_complex = []
+    alpha_shape_hull = []
+    num_points = len(points)
+    
+    for i in tqdm(range(num_points)):
         for j in range(i + 1, num_points):
             for k in range(j + 1, num_points):
                 p1, p2, p3 = points[i], points[j], points[k]
+
+                # compute circumcircle radius
                 radius = circumcircle_radius(p1, p2, p3)
                 
                 if radius <= alpha:
-                    triangles.append([i, j, k])
-    
-    hull_indices = np.unique(np.array(triangles))
-    return points[hull_indices]
+                    alpha_complex.append([p1, p2, p3])
+
+    for triangle in tqdm(alpha_complex):
+        pa, pb, pc = triangle
+        edges = [(pa, pb), (pb, pc), (pc, pa)]
+        for edge in edges:
+            if is_boundary_edge(edge, alpha_complex):
+                alpha_shape_hull.append(edge[0])
+                alpha_shape_hull.append(edge[1])
+
+    # Remove duplicates by converting to a set and then back to a list
+    alpha_shape_hull = list(set(alpha_shape_hull))
+
+    return alpha_shape_hull

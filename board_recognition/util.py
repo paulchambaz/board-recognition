@@ -293,3 +293,9 @@ def hsv_to_gray(hsv):
     @return A grayscale image from the hsv image
     """
     return hsv[:, :, 2]
+
+def create_point_image(image, component):
+    image_rgb = np.stack((image,) * 3, axis=-1)
+    for pixel in component:
+        image_rgb[pixel[0], pixel[1]] = (1.0, 0.0, 0.0)
+    return image_rgb
