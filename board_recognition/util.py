@@ -325,3 +325,7 @@ def create_point_image(image, component):
         image_rgb[pixel[0], pixel[1]] = [1.0, 0.0, 0.0] # OpenCV uses BGR format
 
     return image_rgb
+
+def distance(p1, p2):
+    return ((float(p1[0]) - float(p2[0])) ** 2 + (float(p1[1]) - float(p2[1])) ** 2) ** 0.5
+

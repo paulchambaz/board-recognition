@@ -10,7 +10,7 @@ def get_board_polygon(image):
     pre_image = br.preprocess(image)
     polygon_image = br.process_image(pre_image) / 255
     point_indicies = np.argwhere(polygon_image == 1)
-    point_indicies = point_indicies[::23]
+    point_indicies = point_indicies[::7]
     alpha_shape = br.alpha_shape(point_indicies, 0.0)
     alpha_shape_flipped = np.flip(alpha_shape, axis=1)
     return alpha_shape_flipped * image.shape[0] / pre_image.shape[0]
@@ -68,14 +68,14 @@ def process_image(image):
             huge_components.append(component_image)
 
     # print(len(huge_components))
-
+    #
     # for huge_component in huge_components:
     #     mplt.imshow(huge_component, cmap='gray')
     #     mplt.show()
 
     if len(huge_components) == 1:
         component_image = huge_components[0]
-    elif len(huge_components) > 1:
+    elif len(huge_components) == 2:
         bounding_boxes = [get_bounding_box(component) for component in huge_components]
 
         contained_components = []
@@ -91,7 +91,13 @@ def process_image(image):
             target_x = image.shape[1] * .5
             target_y = image.shape[0] * .6
 
-            component_image = min(huge_components, key=lambda c: distance(get_centroid(c), (target_x, target_y)))
+            component_image = min(huge_components, key=lambda c: br.distance(get_centroid(c), (target_x, target_y)))
+    else:
+        target_x = image.shape[1] * .5
+        target_y = image.shape[0] * .6
+
+        component_image = min(huge_components, key=lambda c: br.distance(get_centroid(c), (target_x, target_y)))
+
 
     # mplt.imshow(component_image, cmap='gray')
     # mplt.show()
@@ -250,9 +256,6 @@ def get_centroid(image):
     centroid_y = moments['m01'] / moments['m00']
 
     return centroid_x, centroid_y
-
-def distance(p1, p2):
-    return ((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2) ** 0.5
 
 def mask_fill(mask):
     out = mask.copy()

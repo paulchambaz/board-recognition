@@ -33,63 +33,27 @@ def main():
 
     image = mimg.imread(image_file)
 
-    polygon = br.get_board_polygon(image)
-    
-    fig, ax = mplt.subplots()
-    ax.imshow(image)
-    polygon_patch = Polygon(polygon, alpha=0.5)
-    ax.add_patch(polygon_patch)
-    x_coords, y_coords = zip(*polygon)
-    ax.scatter(x_coords, y_coords, color='red', marker='x')
+    # polygon = br.get_board_polygon(image)
+    #
+    # fig, ax = mplt.subplots()
+    # ax.imshow(image)
+    # polygon_patch = Polygon(polygon, alpha=0.5)
+    # ax.add_patch(polygon_patch)
+    # x_coords, y_coords = zip(*polygon)
+    # ax.scatter(x_coords, y_coords, color='red', marker='x')
+    # mplt.show()
+
+    boxes = br.get_text_boxes(image)
+
+    mplt.imshow(boxes, cmap='gray')
     mplt.show()
 
-    # poly_points = br.load_polygons_from_json('ground-truth/board/10.json')
-    #
-    # pre_image = br.preprocess(image)
-    #
-    # polygon_image = br.process_image(pre_image) / 255
-    #
-    # mplt.imshow(polygon_image, cmap='gray')
-    # mplt.show()
-    #
-    # point_indices = np.argwhere(polygon_image == 1)
-    # point_indices = point_indices[::31]
-    #
-    # shape_image = br.create_point_image(pre_image, point_indices)
-    #
-    # mplt.imshow(shape_image)
-    # mplt.show()
-    #
-    # alpha_shape_points = br.alpha_shape(point_indices, 0.0)
 
-    # shape_image = br.create_point_image(pre_image, alpha_shape_points)
-
-    # mplt.imshow(shape_image)
+    # fig, ax = mplt.subplots()
+    # ax.imshow(image)
+    # polygon_patch = Polygon(boxes, alpha=0.5)
+    # ax.add_patch(polygon_patch)
+    # x_coords, y_coords = zip(*boxes)
+    # ax.scatter(x_coords, y_coords, color='red', marker='x')
     # mplt.show()
 
-    exit(0)
-
-    # file_name = image_file.name
-    # output_path = pathlib.Path("output") / file_name
-
-
-    alpha_shape_points = br.alpha_shape(point_indices, 0.0)
-
-    shape_image = br.create_point_image(pre_image, alpha_shape_points)
-
-    mplt.imshow(shape_image, cmap='gray')
-    mplt.show()
-
-    shape_image = br.create_polygon_image(pre_image, alpha_shape_points)
-    
-    mplt.imshow(shape_image, cmap='gray')
-    mplt.show()
-
-    # fig, (ax1, ax2) = mplt.subplots(1, 2, figsize=(10, 5))
-    # ax1.imshow(image)
-    # ax1.set_title('Original Image')
-    #
-    # ax2.imshow(resized, cmap='gray')
-    # ax2.set_title('Polygon Image')
-    #
-    # mplt.show()

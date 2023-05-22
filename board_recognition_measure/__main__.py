@@ -20,6 +20,9 @@ def main():
     board_scores = []
     text_scores = []
     schema_scores = []
+
+    # TODO: rewrite this so it computes the performance of the training for
+    # everything, then of the test for everything and then does seperate reports
     
     print("Board")
     for file in tqdm(files):
@@ -36,46 +39,81 @@ def main():
 
         iou = calculate_iou(image_ground_truth, image_result)
 
-        # fig, (ax1, ax2, ax3) = mplt.subplots(1, 3, figsize=(10, 5))
-        #
-        # ax1.imshow(image)
-        # ax1.set_title('Original image')
-        #
-        # ax2.imshow(image_ground_truth, cmap='gray')
-        # ax2.set_title('Ground truth')
-        #
-        # ax3.imshow(image_result, cmap='gray')
-        # ax3.set_title('Result')
-        #
-        # fig.suptitle(f"IOU: {int(iou * 100)}%")
-        #
+        fig, (ax1, ax2, ax3) = mplt.subplots(1, 3, figsize=(10, 5))
+        
+        ax1.imshow(image)
+        ax1.set_title('Original image')
+        
+        ax2.imshow(image_ground_truth, cmap='gray')
+        ax2.set_title('Ground truth')
+        
+        ax3.imshow(image_result, cmap='gray')
+        ax3.set_title('Result')
+        
+        fig.suptitle(f"Image n°{n}: {int(iou * 100)}%")
+        
         # mplt.show()
+        output_path = f"output/board/{n}.jpg"
+        fig.savefig(output_path)
+
 
         board_scores.append(iou)
 
-    # print("Text")
-    # for file in tqdm(files):
-    #     n = file.stem
-    #     image = load_image(str(file))
-    #
-    #     text = f"ground-truth/text/{n}.json"
-    #     text_poly = load_polygons_from_json(text)
-    #     if not text_poly:
-    #         continue
-    #
-    #     text_scores.append(random.random())
-    #
-    # print("Schema")
-    # for file in tqdm(files):
-    #     n = file.stem
-    #     image = load_image(str(file))
-    #
-    #     schema = f"ground-truth/schema/{n}.json"
-    #     schema_poly = load_polygons_from_json(schema)
-    #     if not schema_poly:
-    #         continue
-    #
-    #     schema_scores.append(random.random())
+    print(f"Median: {statistics.median(board_scores)}")
+    print(f"Mean: {statistics.mean(board_scores)}")
+    print(f"Worst:{min(board_scores)}")
+    print(f"Best:{max(board_scores)}")
+    
+    board_scores.sort()
+    segment_size = len(board_scores) // 9  # Number of elements in each 10% segment
+    
+    for i in range(0, len(board_scores), segment_size):
+        segment = board_scores[i:i+segment_size]  # Get the current segment
+        segment_average = sum(segment) / len(segment)  # Calculate the average
+        print("Segment", (i // segment_size) + 1, "average:", segment_average)
+    
+    exit(0)
+
+    print("Text")
+    for file in tqdm(files):
+        n = file.stem
+        image = load_image(str(file))
+    
+        text = f"ground-truth/text/{n}.json"
+        ground_truth = load_polygons_from_json(text)
+
+        print(ground_truth)
+
+        if not ground_truth or not ground_truth[0]:
+            ground_truth = []  # or any equivalent representation of an empty list
+        else:
+            ground_truth = [[[int(x), int(y)] for x, y in polygon] for polygon in ground_truth]
+
+        image_ground_truth = create_polygons_image(image, ground_truth)
+
+        # result = br.get_text_boxes(image)
+        # image_result = create_polygons_image(image, result)
+
+        # iou = calculate_iou(image_ground_truth, image_result)
+
+        fig, (ax1, ax2, ax3) = mplt.subplots(1, 3, figsize=(10, 5))
+        
+        ax1.imshow(image)
+        ax1.set_title('Original image')
+        
+        ax2.imshow(image_ground_truth, cmap='gray')
+        ax2.set_title('Ground truth')
+        
+        # ax3.imshow(image_result, cmap='gray')
+        # ax3.set_title('Result')
+        
+        # fig.suptitle(f"IOU: {int(iou * 100)}%")
+        
+        mplt.show()
+
+        # text_scores.append(iou)
+
+    exit(0)
 
     summary_file = datetime.today().strftime('report/report-%Y-%m-%d-%H-%M-%S.txt')
 
@@ -124,6 +162,7 @@ def load_polygons_from_json(json_file_path):
         json_data = json.load(f)
     except OSError:
         return polygons
+
     for shape in json_data['shapes']:
         polygons.append(shape['points'])
     return polygons
@@ -180,6 +219,19 @@ def create_polygon_image(image, board_polygon):
     draw = ImageDraw.Draw(image_polygon)
     board_polygon = list(map(tuple, board_polygon))
     draw.polygon(board_polygon, fill="white")
+
+    return np.array(image_polygon)
+
+def create_polygons_image(image, polygon):
+    image_pil = Image.fromarray(image)
+    size = image_pil.size
+
+    image_polygon = Image.new("L", size)
+    draw = ImageDraw.Draw(image_polygon)
+    
+    for poly in polygon:
+        points = [tuple(point) for point in poly]
+        draw.polygon(points, fill="white")
 
     return np.array(image_polygon)
 
