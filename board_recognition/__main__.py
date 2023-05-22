@@ -1,11 +1,12 @@
 import board_recognition as br
 
-from gooey import Gooey, GooeyParser
+# from gooey import Gooey, GooeyParser
 import sys
 import argparse
 import pathlib
 import matplotlib.pyplot as mplt
 import matplotlib.image as mimg
+from matplotlib.patches import Polygon
 import numpy as np
 
 # @Gooey(program_name="Get text from a board")
@@ -32,28 +33,56 @@ def main():
 
     image = mimg.imread(image_file)
 
-    pre_image = br.preprocess(image)
+    polygon = br.get_board_polygon(image)
+    
+    fig, ax = mplt.subplots()
+    ax.imshow(image)
+    polygon_patch = Polygon(polygon, alpha=0.5)
+    ax.add_patch(polygon_patch)
+    x_coords, y_coords = zip(*polygon)
+    ax.scatter(x_coords, y_coords, color='red', marker='x')
+    mplt.show()
 
-    polygon_image = br.process_image(pre_image)
-
-    # fig, (ax1, ax2) = mplt.subplots(1, 2, figsize=(10, 5))
-    # ax1.imshow(image)
-    # ax1.set_title('Original Image')
+    # poly_points = br.load_polygons_from_json('ground-truth/board/10.json')
     #
-    # ax2.imshow(polygon_image, cmap='gray')
-    # ax2.set_title('Polygon Image')
+    # pre_image = br.preprocess(image)
+    #
+    # polygon_image = br.process_image(pre_image) / 255
+    #
+    # mplt.imshow(polygon_image, cmap='gray')
+    # mplt.show()
+    #
+    # point_indices = np.argwhere(polygon_image == 1)
+    # point_indices = point_indices[::31]
+    #
+    # shape_image = br.create_point_image(pre_image, point_indices)
+    #
+    # mplt.imshow(shape_image)
+    # mplt.show()
+    #
+    # alpha_shape_points = br.alpha_shape(point_indices, 0.0)
 
-    file_name = image_file.name
-    output_path = pathlib.Path("output") / file_name
+    # shape_image = br.create_point_image(pre_image, alpha_shape_points)
 
-    point_indices = np.argwhere(polygon_image == 1)
-    point_indices = point_indices[::31]
+    # mplt.imshow(shape_image)
+    # mplt.show()
 
-    alpha_shape_points = br.alpha_shape(point_indices, 10)
+    exit(0)
+
+    # file_name = image_file.name
+    # output_path = pathlib.Path("output") / file_name
+
+
+    alpha_shape_points = br.alpha_shape(point_indices, 0.0)
 
     shape_image = br.create_point_image(pre_image, alpha_shape_points)
 
-    mplt.imshow(shape_image)
+    mplt.imshow(shape_image, cmap='gray')
+    mplt.show()
+
+    shape_image = br.create_polygon_image(pre_image, alpha_shape_points)
+    
+    mplt.imshow(shape_image, cmap='gray')
     mplt.show()
 
     # fig, (ax1, ax2) = mplt.subplots(1, 2, figsize=(10, 5))

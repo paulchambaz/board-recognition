@@ -1,6 +1,7 @@
 import matplotlib.pyplot as mplt
 import math
 import numpy as np
+import cv2
 
 def preprocess(image):
     cols, rows, _ = image.shape
@@ -9,32 +10,50 @@ def preprocess(image):
         scale_factor = 512 / max_dim
         new_cols = int(cols * scale_factor)
         new_rows = int(rows * scale_factor)
-        resized = downsize_rgb(image, (new_cols, new_rows))
+        resized = cv2.resize(image, (new_rows, new_cols))
     else:
         resized = image
 
-#     mplt.imshow(resized)
-#     mplt.show()
+    gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
 
-    gray = grayscale(resized)
+    # Perform contrast stretching
+    min_val = np.min(gray)
+    max_val = np.max(gray)
+    contrasted = cv2.normalize(gray, None, min_val, max_val, cv2.NORM_MINMAX)
 
-    # print('gray')
-
-    # mplt.imshow(gray, cmap='gray')
-    # mplt.show()
-
-    contrasted = stretch_contrast(gray)
-
-#     mplt.imshow(contrasted, cmap='gray')
-#     mplt.show()
-
-    sigmoid = 1 / (1 + np.exp(-4 * (contrasted - 0.5)))
-    sigmoid = np.clip(sigmoid, 0, 1)
-
-#     mplt.imshow(sigmoid, cmap='gray')
-#     mplt.show()
-
-    return sigmoid
+    return contrasted
+#     cols, rows, _ = image.shape
+#     max_dim = max(rows, cols)
+#     if max_dim > 512:
+#         scale_factor = 512 / max_dim
+#         new_cols = int(cols * scale_factor)
+#         new_rows = int(rows * scale_factor)
+#         resized = downsize_rgb(image, (new_cols, new_rows))
+#     else:
+#         resized = image
+#
+# #     mplt.imshow(resized)
+# #     mplt.show()
+#
+#     gray = grayscale(resized)
+#
+#     # print('gray')
+#
+#     # mplt.imshow(gray, cmap='gray')
+#     # mplt.show()
+#
+#     contrasted = stretch_contrast(gray)
+#
+# #     mplt.imshow(contrasted, cmap='gray')
+# #     mplt.show()
+#
+#     sigmoid = 1 / (1 + np.exp(-4 * (contrasted - 0.5)))
+#     sigmoid = np.clip(sigmoid, 0, 1)
+#
+# #     mplt.imshow(sigmoid, cmap='gray')
+# #     mplt.show()
+#
+#     return sigmoid
 
 def grayscale(image):
     """Converts a numpy rgb image to grayscale
@@ -295,7 +314,14 @@ def hsv_to_gray(hsv):
     return hsv[:, :, 2]
 
 def create_point_image(image, component):
-    image_rgb = np.stack((image,) * 3, axis=-1)
+    # Replicate the grayscale image into 3 channels to create an RGB image
+    image_rgb = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+
+    # Convert the image to floating point in the range 0 to 1
+    image_rgb = image_rgb.astype(np.float32) / 255
+
+    # Highlight the pixels belonging to the 'component' in red color
     for pixel in component:
-        image_rgb[pixel[0], pixel[1]] = (1.0, 0.0, 0.0)
+        image_rgb[pixel[0], pixel[1]] = [1.0, 0.0, 0.0] # OpenCV uses BGR format
+
     return image_rgb
