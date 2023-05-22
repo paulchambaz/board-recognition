@@ -2,31 +2,115 @@ import board_recognition as br
 
 import matplotlib.pyplot as mplt
 import numpy as np
+from tqdm import tqdm
 
 def get_board_polygon(image):
+    pre_image = br.preprocess(image)
+    polygon_image = br.process_image(pre_image)
+    # TODO
 
-    # print("Gaussian")
+def process_image(image):
+    
+    # print('original')
+    # mplt.imshow(image, cmap='gray')
+    # mplt.show()
+
     gaussian = gaussian_smoothing(image, kernel_size=5, sigma=1.4)
 
-    # print("Gradient")
+#     print("gaussian")
+#     mplt.imshow(gaussian, cmap='gray')
+#     mplt.show()
+
     gradient = gradients(gaussian)
+    gradient = gaussian_smoothing(gradient, kernel_size=3, sigma=0.8)
 
-    # print("Binary")
-    binary_image = br.binarize(gradient, .2)
+    # print("gradient")
+    # mplt.imshow(gradient, cmap='gray')
+    # mplt.show()
 
-    # print("Invert")
+    binary_image = br.binarize(gradient, .15)
+
+    binary_image = fill_holes(binary_image, size=3)
+
+    # print("binary")
+    # mplt.imshow(binary_image, cmap='gray')
+    # mplt.show()
+
     inverted_image = br.invert(binary_image)
+
+    # mplt.imshow(inverted_image, cmap='gray')
+    # mplt.show()
 
     # print("Connected components")
     connected_components = br.get_connected_components(inverted_image)
     largest_component = max(connected_components, key=len)
-    component_image = br.create_component_image(image, largest_component)
-    
-    # print("Fill holes")
-    filled = fill_holes(component_image)
+    size_threshold = 0.4 * len(largest_component)
 
-    mplt.imshow(filled, cmap='gray')
+    huge_components = [component for component in connected_components if len(component) >= size_threshold]
+
+    # print('connected components')
+    # for component in huge_components:
+    #     component_image = br.create_component_image(image, component)
+    #     mplt.imshow(component_image, cmap='gray')
+    #     mplt.show()
+
+    contained_components = []
+    done = False
+    if len(huge_components) == 1:
+        connected_component = huge_components[0]
+        print('unique selection')
+        done = True
+    elif len(huge_components) == 2:
+        bounding_boxes = [get_bounding_box(component) for component in huge_components]
+
+        for i, box1 in enumerate(bounding_boxes):
+            for j, box2 in enumerate(bounding_boxes):
+                if i != j and is_inside(box1, box2, margin=32):
+                    contained_components.append(huge_components[i])
+                    break
+
+        if len(contained_components) == 1:
+            connected_component = contained_components[0]
+            print('bounding box selection')
+            done = True
+
+    if done == False:
+            target_x = image.shape[1] * .5
+            target_y = image.shape[0] * .6
+
+            connected_component = min(huge_components, key=lambda c: distance(get_centroid(c), (target_x, target_y)))
+            print('target selection')
+
+    component_image = br.create_component_image(image, connected_component)
+
+    # mplt.imshow(component_image, cmap='gray')
+    # mplt.show()
+
+    filled = fill_holes(component_image, size=5)
+    inverted = 1.0 - filled
+    inverted_filled = fill_holes(inverted, size=3)
+    filled = 1.0 - inverted_filled
+
+    # print('filling')
+    # mplt.imshow(filled, cmap='gray')
+    # mplt.show()
+
+    flood_filled = mask_fill(filled)
+
+    mplt.imshow(flood_filled, cmap='gray')
     mplt.show()
+
+    frontier = get_frontier(flood_filled)
+
+    # mplt.imshow(frontier, cmap='gray')
+    # mplt.show()
+
+    return frontier
+
+def get_frontier(image, size=3):
+    kernel = np.ones((size, size), dtype=np.uint8)
+    erode_image = erode(image, kernel, pad_value=0)
+    return image - erode_image
 
 def gaussian_smoothing(image, kernel_size=3, sigma=1.0):
     """Applies a gaussian smoothing filter to the image
@@ -81,40 +165,175 @@ def gradients(image):
 
     return magnitude
 
-
-def fill_holes(image):
-    """Fills holes in a binary image
-    @param image The binary image to process
-    @return The image with filled holes
+def fill_holes(image, size=5):
+    """Fill holes using a dilation + erosion method
+    @param image The image to fill holes for
+    @param size The size of the kernel used to dilate and erode (def 5)
     """
-    filled = np.zeros_like(image)
-    for j in range(image.shape[0]):
-        # find first pixel with a white value
-        min = 0
-        max = 0
-        for i in range(0, image.shape[1]):
-            if image[j, i] == 1.0:
-                min = i
-                break
-        for i in range(image.shape[1] - 1, -1, -1):
-            if image[j, i] == 1.0:
-                max = i
-                break
-        for i in range(min, max):
-            filled[j, i] = 1.0
-    for i in range(image.shape[1]):
-        # find first pixel with a white value
-        min = 0
-        max = 0
-        for j in range(0, image.shape[0]):
-            if image[j, i] == 1.0:
-                min = j
-                break
-        for j in range(image.shape[0] - 1, -1, -1):
-            if image[j, i] == 1.0:
-                max = j
-                break
-        for j in range(min, max):
-            filled[j, i] = 1.0
+    kernel = np.ones((size, size), dtype=np.uint8)
 
-    return filled
+    dilated_image = dilate(image, kernel)
+    closed_image = erode(dilated_image, kernel)
+
+    return closed_image
+
+def dilate(image, kernel):
+    """Dilates the image
+    @param image The image to dilate for
+    @parma kernel The kernel to use for dilation
+    """
+    padded_image = np.pad(image, kernel.shape[0] // 2, mode='constant', constant_values=0)
+    dilated_image = np.zeros_like(image)
+
+    for i in range(image.shape[0]):
+        for j in range(image.shape[1]):
+            dilated_image[i, j] = np.any(kernel == padded_image[i:i + kernel.shape[0], j:j + kernel.shape[1]])
+
+    return dilated_image
+
+def erode(image, kernel, pad_value=1):
+    """Erodes the image
+    @param image The image to erode for
+    @parma kernel The kernel to use for erosion
+    """
+    padded_image = np.pad(image, kernel.shape[0] // 2, mode='constant', constant_values=pad_value)
+    eroded_image = np.zeros_like(image)
+
+    for i in range(image.shape[0]):
+        for j in range(image.shape[1]):
+            eroded_image[i, j] = np.all(kernel == padded_image[i:i + kernel.shape[0], j:j + kernel.shape[1]])
+
+    return eroded_image
+
+def get_bounding_box(component):
+    xs, ys = zip(*component)
+    x_min, x_max = min(xs), max(xs)
+    y_min, y_max = min(ys), max(ys)
+
+    return x_min, x_max, y_min, y_max
+
+def is_inside(inner_box, outer_box, margin=0):
+    return (
+        inner_box[0] + margin >= outer_box[0]
+        and inner_box[1] - margin <= outer_box[1]
+        and inner_box[2] + margin >= outer_box[2]
+        and inner_box[3] - margin <= outer_box[3]
+    )
+
+def get_centroid(component):
+    xs, ys = zip(*component)
+    x_avg = sum(xs) / len(component)
+    y_avg = sum(ys) / len(component)
+
+    return x_avg, y_avg
+
+def distance(p1, p2):
+    return ((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2) ** 0.5
+
+def mask_fill(mask):
+    out = mask.copy()
+    invert = 1.0 - out
+    connected_components = br.get_connected_components(invert)
+
+    for component in connected_components:
+        component_image = br.create_component_image(mask, component)
+
+        start_point = component[0]
+
+        sleft = False
+        for x in range(start_point[0], -1, -1):
+            if out[start_point[1], x] == 1:
+                sleft = True
+                break
+
+        sright = False
+        for x in range(start_point[0], out.shape[1], 1):
+            if out[start_point[1], x] == 1:
+                sright = True
+                break
+
+        sup = False
+        for y in range(start_point[1], -1, -1):
+            if out[y, start_point[0]] == 1:
+                sup = True
+                break
+
+        sdown = False
+        for x in range(start_point[1], out.shape[0], 1):
+            if out[y, start_point[0]] == 1:
+                sdown = True
+                break
+
+        if sleft and sright and sup and sdown:
+            for point in component:
+                out[point[1], point[0]] = 1.0
+
+    return out
+
+
+# polygon algorithms
+
+def euclidean_distance(p1, p2):
+    return np.sqrt(np.sum((p1 - p2) ** 2))
+
+def circumcircle_radius(p1, p2, p3):
+    a = euclidean_distance(p1, p2)
+    b = euclidean_distance(p2, p3)
+    c = euclidean_distance(p3, p1)
+    
+    # Check for collinear points
+    if abs(a + b - c) < 1e-6 or abs(b + c - a) < 1e-6 or abs(c + a - b) < 1e-6:
+        return np.inf
+    
+    s = (a + b + c) / 2
+    area = np.sqrt(s * (s - a) * (s - b) * (s - c))
+    
+    if area == 0:
+        return np.inf
+    
+    radius = (a * b * c) / (4 * area)
+    return radius
+
+def is_boundary_edge(edge, triangles):
+    """
+    Check if an edge is on the boundary of the set of triangles.
+    An edge is on the boundary if it is part of only one triangle.
+    """
+    count = sum(1 for triangle in triangles if edge_in_triangle(edge, triangle))
+    return count == 1
+
+def edge_in_triangle(edge, triangle):
+    """
+    Check if an edge is part of a triangle.
+    """
+    return all(point in triangle for point in edge)
+
+def alpha_shape(points, alpha):
+    
+    alpha_complex = []
+    alpha_shape_hull = []
+    num_points = len(points)
+    
+    for i in tqdm(range(num_points)):
+        for j in range(i + 1, num_points):
+            for k in range(j + 1, num_points):
+                p1, p2, p3 = points[i], points[j], points[k]
+
+                # compute circumcircle radius
+                radius = circumcircle_radius(p1, p2, p3)
+                
+                if radius <= alpha:
+                    alpha_complex.append([p1, p2, p3])
+
+    for triangle in tqdm(alpha_complex):
+        pa, pb, pc = triangle
+        edges = [(pa, pb), (pb, pc), (pc, pa)]
+        for edge in edges:
+            if is_boundary_edge(edge, alpha_complex):
+                alpha_shape_hull.append(edge[0])
+                alpha_shape_hull.append(edge[1])
+
+    # Remove duplicates by converting to a set and then back to a list
+    alpha_shape_hull = list(set(alpha_shape_hull))
+
+    return alpha_shape_hull

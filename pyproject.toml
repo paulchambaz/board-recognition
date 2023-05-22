@@ -6,13 +6,18 @@ authors = [ "David Bret", "Paul Chambaz", "Frederic Ye" ]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.10"
-pillow = "^9.4.0"
-matplotlib = "^3.7.0"
-numpy = "^1.24.2"
+python = "^3.8"
+#attrdict3 = "^2.0.2"
+#wheel = "^0.40.0"
+#requests = "^2.30.0"
+#wxpython = "4.1"
+#gooey = "^1.0.8.1"
+pillow = "^9.5.0"
+matplotlib = "^3.7.1"
+numpy = "^1.24.3"
 argparse = "^1.4.0"
 pathlib = "^1.0.1"
-tqdm = "^4.64.1"
+tqdm = "^4.65.0"
 
 [tool.poetry.group.dev.dependencies]
 labelme = "^5.1.1"
