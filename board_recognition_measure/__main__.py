@@ -2,6 +2,7 @@
 algorithms"""
 
 import matplotlib.image as mimg
+import matplotlib.pyplot as mplt
 
 import pathlib
 import statistics
@@ -9,6 +10,8 @@ import random
 import json
 from datetime import datetime
 from tqdm import tqdm
+from PIL import Image, ImageDraw
+import numpy as np
 
 def main():
     files = load_files("data")
@@ -22,8 +25,16 @@ def main():
         image = load_image(str(file))
 
         board = f"ground-truth/board/{n}.json"
-        board_poly = load_polygons_from_json(board)
-        if not board_poly:
+        board_poly = load_polygons_from_json(board)        
+        board_poly = np.array(board_poly[0]).astype(int)
+        image_labelme = create_polygon_image(image, board_poly)
+
+        mplt.imshow(image_labelme, cmap='gray')
+        mplt.title(f"image {n}")
+        mplt.axis('off')
+        mplt.show()
+
+        if not board_poly.size == 0:
             continue
 
         board_scores.append(random.random())
@@ -87,6 +98,7 @@ def load_files(path):
     path = pathlib.Path("data")
     return [file for file in path.iterdir() if file.is_file()]
 
+
 def load_image(path):
     return  mimg.imread(path)
 
@@ -101,6 +113,7 @@ def load_polygons_from_json(json_file_path):
     for shape in json_data['shapes']:
         polygons.append(shape['points'])
     return polygons
+
 
 def is_point_inside_polygon(point, polygon):
     """ Checks if a point is inside a polygon using the ray casting algorithm
@@ -141,3 +154,17 @@ def get_polygon_image(polygon, image):
             if is_point_inside_polygon((i, j), polygon):
                 polygon_image[j, i] = 255
     return polygon_image
+
+
+def create_polygon_image(image, board_polygon):
+    """Return a binary image of the polygon fromn the labeled polygon
+    """
+    image_pil = Image.fromarray(image)
+    size = image_pil.size
+
+    image_polygon = Image.new("L", size)
+    draw = ImageDraw.Draw(image_polygon)
+    board_polygon = list(map(tuple, board_polygon))
+    draw.polygon(board_polygon, fill="white")
+
+    return np.array(image_polygon)
