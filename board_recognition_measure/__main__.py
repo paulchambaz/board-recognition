@@ -13,6 +13,8 @@ from tqdm import tqdm
 from PIL import Image, ImageDraw
 import numpy as np
 
+import board_recognition as br
+
 def main():
     files = load_files("data")
     board_scores = []
@@ -25,50 +27,62 @@ def main():
         image = load_image(str(file))
 
         board = f"ground-truth/board/{n}.json"
-        board_poly = load_polygons_from_json(board)        
-        board_poly = np.array(board_poly[0]).astype(int)
-        image_labelme = create_polygon_image(image, board_poly)
+        ground_truth = load_polygons_from_json(board)        
+        ground_truth = np.array(ground_truth[0]).astype(int)
+        image_ground_truth = create_polygon_image(image, ground_truth)
 
-        mplt.imshow(image_labelme, cmap='gray')
-        mplt.title(f"image {n}")
-        mplt.axis('off')
-        mplt.show()
+        result = br.get_board_polygon(image)
+        image_result = create_polygon_image(image, result)
 
-        if not board_poly.size == 0:
-            continue
+        iou = calculate_iou(image_ground_truth, image_result)
 
-        board_scores.append(random.random())
+        # fig, (ax1, ax2, ax3) = mplt.subplots(1, 3, figsize=(10, 5))
+        #
+        # ax1.imshow(image)
+        # ax1.set_title('Original image')
+        #
+        # ax2.imshow(image_ground_truth, cmap='gray')
+        # ax2.set_title('Ground truth')
+        #
+        # ax3.imshow(image_result, cmap='gray')
+        # ax3.set_title('Result')
+        #
+        # fig.suptitle(f"IOU: {int(iou * 100)}%")
+        #
+        # mplt.show()
 
-    print("Text")
-    for file in tqdm(files):
-        n = file.stem
-        image = load_image(str(file))
+        board_scores.append(iou)
 
-        text = f"ground-truth/text/{n}.json"
-        text_poly = load_polygons_from_json(text)
-        if not text_poly:
-            continue
+    # print("Text")
+    # for file in tqdm(files):
+    #     n = file.stem
+    #     image = load_image(str(file))
+    #
+    #     text = f"ground-truth/text/{n}.json"
+    #     text_poly = load_polygons_from_json(text)
+    #     if not text_poly:
+    #         continue
+    #
+    #     text_scores.append(random.random())
+    #
+    # print("Schema")
+    # for file in tqdm(files):
+    #     n = file.stem
+    #     image = load_image(str(file))
+    #
+    #     schema = f"ground-truth/schema/{n}.json"
+    #     schema_poly = load_polygons_from_json(schema)
+    #     if not schema_poly:
+    #         continue
+    #
+    #     schema_scores.append(random.random())
 
-        text_scores.append(random.random())
-
-    print("Schema")
-    for file in tqdm(files):
-        n = file.stem
-        image = load_image(str(file))
-
-        schema = f"ground-truth/schema/{n}.json"
-        schema_poly = load_polygons_from_json(schema)
-        if not schema_poly:
-            continue
-
-        schema_scores.append(random.random())
-    
     summary_file = datetime.today().strftime('report/report-%Y-%m-%d-%H-%M-%S.txt')
 
 
     with open(summary_file, "w") as file:
         file.write("Summary:\n")
-
+    
         file.write("Board:\n")
         file.write(f"N:{len(board_scores)}\n")
         if len(board_scores) > 0:
@@ -76,23 +90,23 @@ def main():
             file.write(f"Median:{statistics.median(board_scores)}\n")
             file.write(f"Worst:{min(board_scores)}\n")
             file.write(f"Best:{max(board_scores)}\n")
-
-        file.write("Test:\n")
-        file.write(f"N:{len(text_scores)}\n")
-        if len(text_scores) > 0:
-            file.write(f"Mean:{statistics.mean(text_scores)}\n")
-            file.write(f"Median:{statistics.median(text_scores)}\n")
-            file.write(f"Worst:{min(text_scores)}\n")
-            file.write(f"Best:{max(text_scores)}\n")
-
-        file.write("Schema:\n")
-        file.write(f"N:{len(schema_scores)}\n")
-        if len(schema_scores) > 0:
-            file.write(f"Mean:{statistics.mean(schema_scores)}\n")
-            file.write(f"Median:{statistics.median(schema_scores)}\n")
-            file.write(f"Worst:{min(schema_scores)}\n")
-            file.write(f"Best:{max(schema_scores)}\n")
-
+    #
+    #     file.write("Test:\n")
+    #     file.write(f"N:{len(text_scores)}\n")
+    #     if len(text_scores) > 0:
+    #         file.write(f"Mean:{statistics.mean(text_scores)}\n")
+    #         file.write(f"Median:{statistics.median(text_scores)}\n")
+    #         file.write(f"Worst:{min(text_scores)}\n")
+    #         file.write(f"Best:{max(text_scores)}\n")
+    #
+    #     file.write("Schema:\n")
+    #     file.write(f"N:{len(schema_scores)}\n")
+    #     if len(schema_scores) > 0:
+    #         file.write(f"Mean:{statistics.mean(schema_scores)}\n")
+    #         file.write(f"Median:{statistics.median(schema_scores)}\n")
+    #         file.write(f"Worst:{min(schema_scores)}\n")
+    #         file.write(f"Best:{max(schema_scores)}\n")
+    #
 
 def load_files(path):
     path = pathlib.Path("data")
@@ -168,3 +182,11 @@ def create_polygon_image(image, board_polygon):
     draw.polygon(board_polygon, fill="white")
 
     return np.array(image_polygon)
+
+def calculate_iou(image1, image2):
+    intersection = np.logical_and(image1, image2)
+    union = np.logical_or(image1, image2)
+    intersection_area = np.sum(intersection)
+    union_area = np.sum(union)
+    iou = intersection_area / union_area
+    return iou
