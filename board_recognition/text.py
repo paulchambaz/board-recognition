@@ -9,12 +9,9 @@ import json
 
 from shapely.geometry import Polygon
 from shapely.geometry import LineString, Point, box
-
-# from shapely.ops import unary_union, cascaded_union
-# from skimage.measure import approximate_polygon
+from skimage.morphology import skeletonize
 
 def get_text_boxes(image):
-    print('computing text boxes')
     pre_image = br.preprocess(image)
 
     polygon_image = br.process_image(pre_image) / 255
@@ -28,17 +25,15 @@ def get_text_boxes(image):
     corrected, matrix = correct_perspective(image, quad)
     pre_corrected = preprocess_masked(corrected)
 
-    smoothed_image = cv2.GaussianBlur(pre_corrected, (5, 5), 0.5)
+    smoothed_image = cv2.GaussianBlur(pre_corrected, (3, 3), 0.1)
 
     gradient_x = cv2.Sobel(smoothed_image, cv2.CV_64F, 1, 0, ksize=3)
     gradient_y = cv2.Sobel(smoothed_image, cv2.CV_64F, 0, 1, ksize=3)
     magnitude = np.sqrt(np.square(gradient_x) + np.square(gradient_y))
 
-    horizontal_blur_image = cv2.GaussianBlur(magnitude, (25, 25), 6.0, 0.2)
+    horizontal_blur_image = cv2.GaussianBlur(magnitude, (25, 25), 6.0, 0.01)
 
     stretch_horizontal = stretch(horizontal_blur_image)
-
-    _, binary_image_back = cv2.threshold(stretch_horizontal.astype(np.uint8), 200, 255, cv2.THRESH_BINARY)
 
     _, binary_image = cv2.threshold(stretch_horizontal.astype(np.uint8), 100, 255, cv2.THRESH_BINARY)
     
@@ -50,35 +45,36 @@ def get_text_boxes(image):
     stats = sorted(stats[1:], key=lambda x: x[cv2.CC_STAT_AREA + 1], reverse=True)
     largest_area = stats[len(stats) // 2][cv2.CC_STAT_AREA + 1]
 
-    acceptable_component = []
+    acceptable_components = []
 
     for stat in stats:
         label = stat[0]
         area = stat[cv2.CC_STAT_AREA + 1]
-        if area >= largest_area * 0.1:
+        if area >= largest_area * 0.2:
             component_image = np.zeros_like(binary_image, dtype=np.uint8)
             component_image[labels == label] = 255
-            acceptable_component.append(component_image)
+            acceptable_components.append(component_image)
 
-    print(len(acceptable_component))
+    boxes = []
 
-    return binary_image
+    for component in acceptable_components:
+        skeleton = get_skeleton(component)
+        direction = calculate_direction(skeleton)
 
-    # for each connected component in the image
-    # if it is too small we just discard it (what does too small mean)
-    # find its skeleton
-    # find its directional vector
-    # if the vector is too vertical we just give up
-    # if the vector is too small we just give up
-    # correct the perspective of the connected component
-    # find the bounding box of the connected component
-    # if its ratio is too small we just give up
-    # correct the perspective of the box back
-    # done for loop
-    # we should now have all the boxes
-    # correct their perspective with the perspective matrix
-    # correct their ratio so it fit the original image
-    # we are done
+        if direction > 75 or direction < -75:
+            continue
+
+        # TODO: add the rotation
+        # rotated = rotate_points(component, direction)
+
+        box = get_bbox(component)
+        box = np.array([[box[0], box[1]], [box[2], box[1]], [box[2], box[3]], [box[0], box[3]]])
+
+        box = undo_box_perspective(box, matrix)
+
+        boxes.append(box)
+
+    return boxes
 
 def compute_quad(polygon):
     min_x = np.min(polygon[:, 0])
@@ -97,7 +93,6 @@ def compute_quad(polygon):
     top_right = (max_x, top_right[1] - step / 2)
     bottom_right = (max_x, bottom_right[1] + step / 2)
     bottom_left = (min_x, bottom_left[1] + step / 2)
-
 
     done = False
     quad = None
@@ -223,3 +218,61 @@ def stretch(image):
     stretched_image = cv2.normalize(stretched_image, None, 0, 255, cv2.NORM_MINMAX)
 
     return stretched_image
+
+def get_skeleton(image):
+    return skeletonize(image)
+
+def calculate_direction(image):
+    nonzero_pixels = np.nonzero(image)
+    x_coords, y_coords = nonzero_pixels
+
+    avg_x = np.mean(x_coords)
+    avg_y = np.mean(y_coords)
+
+    centered_x = x_coords - avg_x
+    centered_y = y_coords - avg_y
+
+    direction_vector = np.array([np.mean(centered_x), np.mean(centered_y)])
+    direction_norm = np.linalg.norm(direction_vector)
+
+    if direction_norm == 0:
+        return 90
+
+    direction_vector /= direction_norm
+
+    angle_rad = np.arctan2(direction_vector[1], direction_vector[0])
+    angle_deg = np.rad2deg(angle_rad)
+
+    if angle_deg > 90:
+        angle_deg -= 180
+    elif angle_deg < -90:
+        angle_deg += 180
+
+    return angle_deg
+
+
+def rotate_points(image, angle):
+    nonzero_pixels = np.nonzero(image)
+    y_coords, x_coords = nonzero_pixels
+    mask = np.zeros_like(image, dtype=np.uint8)
+    mask[y_coords, x_coords] = 255
+    rect = cv2.boundingRect(mask)
+    center = (
+        rect[0] + rect[2] // 2,
+        rect[1] + rect[3] // 2
+    )
+    rotation_matrix = cv2.getRotationMatrix2D(center, angle, 1.0)
+    rotated_image = cv2.warpAffine(image, rotation_matrix, (image.shape[1], image.shape[0]))
+    return rotated_image
+
+def get_bbox(image):
+    contours, _ = cv2.findContours(image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    x, y, w, h = cv2.boundingRect(contours[0])
+    return (x, y, x + w, y + h)
+
+def undo_box_perspective(box, perspective_matrix):
+    homogenous_box = np.hstack((box, np.ones((box.shape[0], 1), dtype=box.dtype)))
+    inverse_perspective_matrix = np.linalg.inv(perspective_matrix)
+    unwarped_box = np.dot(inverse_perspective_matrix, homogenous_box.T)
+    unwarped_box = (unwarped_box / unwarped_box[2, :]).T[:, :2]
+    return unwarped_box
