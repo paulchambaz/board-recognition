@@ -1,0 +1,14 @@
+result
+.coverage
+.direnv
+*.pyc
+*.pyo
+*.pyd
+__pycache__
+.pytest_cache/
+.venv/
+dist/
+build/
+result/
+logs/
+*.egg-info/

@@ -1,0 +1,84 @@
+[tool.poetry]
+name = "board-recognition"
+version = "0.1.0"
+description = "board-recognition detects information from boards"
+authors = ["Paul Chambaz <paul.chambaz@tutanota.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+matplotlib = "^3.8"
+numpy = "^1.26"
+pygobject = "^3.46"
+opencv-python = "^4.9"
+alphashape = "^1.3"
+pillow = "^10.2"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0.1"
+pytest-cov = "^4.1.0"
+pytest-xdist = "^3.5.0"
+pytest-sugar = "^1.0.0"
+rich = "^13.7.0"
+black = "^24.2.0"
+autoflake = "^2.2.1"
+ruff = "^0.2.1"
+isort = "^5.13.2"
+
+[tool.poetry.scripts]
+board-recognition = "board_recognition:main"
+board-recognition-measure = "board_recognition_measure:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+addopts = "-ra -q --cov=board_recognition --cov-report=term:skip-covered --no-cov-on-fail --cov-config=pyproject.toml"
+testpaths = [ "tests" ]
+norecursedirs = [
+    '.venv',
+    'dist',
+    'build',
+    '.mypy_cache',
+    '.ruff_cache',
+]
+console_output_style = "classic"
+cache_dir = ".pytest_cache"
+
+[tool.coverage.run]
+branch = true
+source = ["board_recognition"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self\\.debug",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+]
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.direnv
+  | \.git
+  | \.mypy_cache
+  | \.venv
+  | _build
+  | build
+  | dist
+  | result
+  | board_recognition/__pycache__
+  | board_recognition_measure/__pycache__
+)/
+'''
+
+[tool.isort]
+profile = "black"
